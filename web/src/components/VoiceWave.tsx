@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
-import { useConversationControls } from "@elevenlabs/react";
+import { useConversationControls, useConversationInput, useConversationMode, useConversationStatus } from "@elevenlabs/react";
 
 // Onda de voz en canvas: muchas líneas finas y semitransparentes forman una cinta
 // alrededor de una línea central brillante. La amplitud sigue la voz del agente
-// (salida de audio de ElevenLabs); en silencio queda casi plana, respirando.
+// (salida de audio de ElevenLabs). Mientras Sage escucha, respira de forma visible y sigue la voz
+// del usuario (micrófono); si no escucha (micro silenciado o sin conexión) queda plana y atenuada.
 
 type Size = "hero" | "compact" | "panel";
 
@@ -26,6 +27,12 @@ const STOPS: [number, string][] = [
 export function VoiceWave({ size = "hero", className = "" }: { size?: Size; className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const controls = useConversationControls();
+  const { status } = useConversationStatus();
+  const { isSpeaking } = useConversationMode();
+  const { isMuted } = useConversationInput();
+  const mood = status !== "connected" || isMuted ? "idle" : isSpeaking ? "speaking" : "listening";
+  const moodRef = useRef(mood);
+  moodRef.current = mood;
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -50,12 +57,16 @@ export function VoiceWave({ size = "hero", className = "" }: { size?: Size; clas
       draw();
     };
 
-    const readLevel = () => {
-      const data = controls.getOutputByteFrequencyData();
+    const average = (data: Uint8Array) => {
       let sum = 0;
       for (let i = 0; i < data.length; i++) sum += data[i];
-      const spectrum = data.length ? sum / data.length / 255 : 0;
-      return Math.min(1, Math.max(spectrum * 2.4, controls.getOutputVolume() * 1.8));
+      return data.length ? sum / data.length / 255 : 0;
+    };
+    // Hablando: voz de Sage. Escuchando: voz del usuario, algo más contenida.
+    const readLevel = () => {
+      if (moodRef.current === "listening")
+        return Math.min(0.75, Math.max(average(controls.getInputByteFrequencyData()) * 2, controls.getInputVolume() * 1.4));
+      return Math.min(1, Math.max(average(controls.getOutputByteFrequencyData()) * 2.4, controls.getOutputVolume() * 1.8));
     };
 
     const curve = (u: number, phase: number, speed: number) =>
@@ -66,7 +77,10 @@ export function VoiceWave({ size = "hero", className = "" }: { size?: Size; clas
       if (!w || !h) return;
       ctx.clearRect(0, 0, w, h);
       const mid = h / 2;
-      const breathing = 0.05 + 0.025 * Math.sin(t * 1.3);
+      const mood = moodRef.current;
+      // Escuchando: respiración amplia y lenta para que se note que Sage está atento.
+      const breathing = mood === "listening" ? 0.17 + 0.09 * Math.sin(t * 2.1) : mood === "idle" ? 0.025 : 0.05 + 0.025 * Math.sin(t * 1.3);
+      const dim = mood === "idle" ? 0.45 : 1;
       const amp = h * 0.44 * Math.min(1, breathing + level * 0.95);
       const gradient = ctx.createLinearGradient(0, 0, w, 0);
       for (const [at, color] of STOPS) gradient.addColorStop(at, color);
@@ -91,12 +105,12 @@ export function VoiceWave({ size = "hero", className = "" }: { size?: Size; clas
       ctx.lineWidth = 1;
       for (let i = 0; i < lines; i++) {
         const spread = (i / (lines - 1)) * 2 - 1; // -1..1
-        ctx.globalAlpha = 0.16 + 0.3 * (1 - Math.abs(spread));
+        ctx.globalAlpha = (0.16 + 0.3 * (1 - Math.abs(spread))) * dim;
         path(0.35 + 0.65 * Math.cos(spread * 1.2 + t * 0.35), spread * 1.3, 1 + spread * 0.12);
       }
 
       // Línea central brillante con un brillo suave.
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = dim;
       ctx.lineWidth = size === "compact" ? 1.6 : 2.2;
       ctx.shadowColor = "rgba(124, 58, 237, 0.45)";
       ctx.shadowBlur = size === "compact" ? 6 : 12;

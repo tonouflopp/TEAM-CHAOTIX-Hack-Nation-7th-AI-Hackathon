@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useConversationInput } from "@elevenlabs/react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useApp } from "../AppContext";
 import { BackIcon, BookIcon, CheckIcon, ChevronIcon, MicIcon, MicOffIcon, ShieldIcon } from "../components/Icons";
@@ -29,7 +30,8 @@ function Lesson({ teaching }: { teaching: Teaching }) {
   const [params, setParams] = useSearchParams();
   const [lesson, setLesson] = useState<Lesson | null | undefined>(undefined);
   const [connecting, setConnecting] = useState(false);
-  const [muted, setMuted] = useState(false);
+  // Mismo estado de micro que el botón "Listening" del header.
+  const { isMuted: muted, setMuted } = useConversationInput();
   const room = useClassroom();
   const active = room.lessonId === teaching.id;
   const step = active ? room.step : 0;
@@ -60,17 +62,6 @@ function Lesson({ teaching }: { teaching: Teaching }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson]);
 
-  // Silenciar el micro es solo para la clase: al salir se reactiva. (El fin de la clase lo detecta App por la ruta.)
-  const mutedRef = useRef(muted);
-  mutedRef.current = muted;
-  useEffect(
-    () => () => {
-      if (mutedRef.current) agent.setMuted(false);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
   async function startClass() {
     if (!lesson) return;
     setConnecting(true);
@@ -84,14 +75,10 @@ function Lesson({ teaching }: { teaching: Teaching }) {
 
   function endClass() {
     classroom.setVoice(false);
-    if (muted) toggleMute();
     agent.prompt("[CLASE TERMINADA] El alumno pasó a modo autónomo. Despídete en una frase corta.");
   }
 
-  function toggleMute() {
-    agent.setMuted(!muted);
-    setMuted(!muted);
-  }
+  const toggleMute = () => setMuted(!muted);
 
   function goTo(i: number) {
     if (!lesson) return;
@@ -114,14 +101,14 @@ function Lesson({ teaching }: { teaching: Teaching }) {
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-10">
       <Link
         to="/learn"
-        className="-ml-2 mb-4 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-slate-600 transition-colors duration-150 hover:text-learn"
+        className="-ml-2 mb-4 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-slate-600 transition-colors duration-150 hover:text-accent"
       >
         <BackIcon className="size-4" /> Learn
       </Link>
 
       <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-learn">Class</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-accent">Class</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">{sessionTitle(teaching)}</h1>
           <p className="mt-1 text-sm text-slate-600">
             Taught by {teaching.owner}
@@ -134,14 +121,14 @@ function Lesson({ teaching }: { teaching: Teaching }) {
           </p>
         </div>
 
-        <div role="radiogroup" aria-label="How do you want to take this class?" className="grid grid-cols-2 rounded-xl bg-learn-tint p-1 text-sm">
+        <div role="radiogroup" aria-label="How do you want to take this class?" className="grid grid-cols-2 rounded-xl bg-accent-tint p-1 text-sm">
           <button
             role="radio"
             aria-checked={voice}
             onClick={() => !voice && startClass()}
             disabled={!lesson || connecting}
             className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors duration-150 ${
-              voice ? "bg-learn text-white shadow-sm" : "text-learn-strong hover:bg-white/60"
+              voice ? "bg-accent text-white shadow-sm" : "text-accent-strong hover:bg-white/60"
             }`}
           >
             <MicIcon className="size-4" /> {connecting ? "Connecting…" : "Voice class"}
@@ -151,7 +138,7 @@ function Lesson({ teaching }: { teaching: Teaching }) {
             aria-checked={!voice}
             onClick={() => voice && endClass()}
             className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-medium transition-colors duration-150 ${
-              !voice ? "bg-white text-learn-strong shadow-sm" : "text-learn-strong hover:bg-white/60"
+              !voice ? "bg-white text-accent-strong shadow-sm" : "text-accent-strong hover:bg-white/60"
             }`}
           >
             <BookIcon className="size-4" /> Self-paced
@@ -179,17 +166,17 @@ function Lesson({ teaching }: { teaching: Teaching }) {
                       onClick={() => goTo(i)}
                       aria-current={isCurrent ? "step" : undefined}
                       className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors duration-150 ${
-                        isCurrent ? "bg-learn-tint" : "hover:bg-paper"
+                        isCurrent ? "bg-accent-tint" : "hover:bg-paper"
                       }`}
                     >
                       <span
                         className={`grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${
-                          isCurrent ? "bg-learn text-white" : done ? "bg-learn-tint text-learn" : "text-slate-600 ring-1 ring-line"
+                          isCurrent ? "bg-accent text-white" : done ? "bg-accent-tint text-accent" : "text-slate-600 ring-1 ring-line"
                         }`}
                       >
                         {done ? <CheckIcon className="size-3.5" /> : i + 1}
                       </span>
-                      <span className={`pt-0.5 ${isCurrent ? "font-medium text-learn-strong" : "text-slate-700"}`}>{s.title}</span>
+                      <span className={`pt-0.5 ${isCurrent ? "font-medium text-accent-strong" : "text-slate-700"}`}>{s.title}</span>
                     </button>
                   </li>
                 );
@@ -199,24 +186,24 @@ function Lesson({ teaching }: { teaching: Teaching }) {
 
           <div className="order-1 space-y-5 lg:order-2">
             {voice && (
-              <section aria-label="Voice class" className="flex flex-col gap-4 rounded-card bg-learn-deep p-5 text-white sm:flex-row sm:items-center">
+              <section aria-label="Voice class" className="flex flex-col gap-4 rounded-card bg-midnight p-5 text-white sm:flex-row sm:items-center">
                 <VoiceWave size="panel" className="h-20! sm:flex-1" />
                 <div className="flex items-center gap-3 sm:flex-col sm:items-end">
-                  <p className="text-sm text-teal-50/80" aria-live="polite">
-                    {agent.status !== "connected" ? "Reconnecting…" : agent.isSpeaking ? "Sage is teaching" : muted ? "Mic muted" : "Sage is listening"}
+                  <p className="text-sm text-blue-50/80" aria-live="polite">
+                    {agent.status !== "connected" ? "Reconnecting…" : agent.isSpeaking ? "Sage is teaching" : muted ? "Sage isn't listening" : "Sage is listening"}
                   </p>
                   <div className="ml-auto flex gap-2">
                     <button
                       onClick={toggleMute}
                       aria-pressed={muted}
-                      aria-label={muted ? "Unmute microphone" : "Mute microphone"}
+                      aria-label={muted ? "Resume listening" : "Stop listening"}
                       className="grid size-10 place-items-center rounded-full bg-white/10 transition-colors duration-150 hover:bg-white/20"
                     >
                       {muted ? <MicOffIcon /> : <MicIcon />}
                     </button>
                     <button
                       onClick={endClass}
-                      className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-learn-strong transition-colors duration-150 hover:bg-teal-50"
+                      className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-accent-strong transition-colors duration-150 hover:bg-blue-50"
                     >
                       End class
                     </button>
@@ -227,11 +214,11 @@ function Lesson({ teaching }: { teaching: Teaching }) {
 
             <article aria-labelledby="step-title" className="rounded-card bg-white p-6 shadow-soft ring-1 ring-line sm:p-8">
               <div className="flex items-center gap-3">
-                <p className="text-sm font-medium text-learn">
+                <p className="text-sm font-medium text-accent">
                   Step {step + 1} of {lesson.steps.length}
                 </p>
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-learn-tint" aria-hidden>
-                  <div className="h-full rounded-full bg-learn transition-[width] duration-300" style={{ width: `${((step + 1) / lesson.steps.length) * 100}%` }} />
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-accent-tint" aria-hidden>
+                  <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${((step + 1) / lesson.steps.length) * 100}%` }} />
                 </div>
               </div>
               <h2 id="step-title" className="mt-4 text-xl font-semibold text-slate-900 sm:text-2xl">
@@ -250,14 +237,14 @@ function Lesson({ teaching }: { teaching: Teaching }) {
                     </div>
                   ) : (
                     <div key={k} className="rounded-xl bg-paper p-4">
-                      <p className="text-sm font-semibold text-learn-strong">Why the expert does this</p>
+                      <p className="text-sm font-semibold text-accent-strong">Why the expert does this</p>
                       <p className="mt-1 text-sm text-slate-600">{q.question}</p>
                       <p className="mt-1.5 text-slate-900">{q.answer ?? <span className="text-slate-500">No answer recorded.</span>}</p>
                     </div>
                   ),
                 )}
                 {current.notes.map((note, k) => (
-                  <p key={k} className="border-l-2 border-learn/40 pl-3 text-slate-700">
+                  <p key={k} className="border-l-2 border-accent/40 pl-3 text-slate-700">
                     {note}
                   </p>
                 ))}
@@ -279,14 +266,14 @@ function Lesson({ teaching }: { teaching: Teaching }) {
                 {step < lesson.steps.length - 1 ? (
                   <button
                     onClick={() => goTo(step + 1)}
-                    className="inline-flex items-center gap-1 rounded-xl bg-learn px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-learn-strong"
+                    className="inline-flex items-center gap-1 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-accent-strong"
                   >
                     Next step <ChevronIcon className="size-4" />
                   </button>
                 ) : (
                   <button
                     onClick={finish}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-learn px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-learn-strong"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-accent-strong"
                   >
                     <CheckIcon className="size-4" /> Finish class
                   </button>

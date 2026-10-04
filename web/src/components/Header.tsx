@@ -3,6 +3,7 @@ import { Link, NavLink } from "react-router-dom";
 import logoUrl from "../assets/sage-logo.svg";
 import type { User } from "../lib/mockData";
 import { ListIcon, UserIcon } from "./Icons";
+import { ListenButton } from "./ListenButton";
 
 type Props = {
   user: User | null;
@@ -46,19 +47,18 @@ export function Header({ user, authBusy, onSignIn, onSignOut, onToggleSessions }
           <img src={logoUrl} alt="Sage" className="h-7 w-auto sm:h-10" />
         </Link>
 
+        <div className="ml-auto" />
+        <ListenButton />
+
         {/* Pestañas visibles: cuando Sage cambia de pestaña por voz se ve aquí */}
-        <nav aria-label="Mode" className="ml-auto mr-1.5 flex shrink-0 rounded-xl bg-paper p-1 text-sm sm:mr-4">
+        <nav aria-label="Mode" className="mr-1.5 flex shrink-0 rounded-xl bg-paper p-1 text-sm sm:mr-4">
           {(["teach", "learn"] as const).map((tab) => (
             <NavLink
               key={tab}
               to={`/${tab}`}
               className={({ isActive }) =>
                 `rounded-lg px-2.5 py-1.5 font-medium transition-colors duration-150 sm:px-4 ${
-                  isActive
-                    ? tab === "teach"
-                      ? "bg-accent text-white shadow-sm"
-                      : "bg-learn text-white shadow-sm"
-                    : "text-slate-600 hover:text-slate-900"
+                  isActive ? "bg-accent text-white shadow-sm" : "text-slate-600 hover:text-slate-900"
                 }`
               }
             >

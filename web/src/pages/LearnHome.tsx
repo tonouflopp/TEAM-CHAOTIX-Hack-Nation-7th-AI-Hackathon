@@ -39,18 +39,18 @@ export function LearnHome() {
   return (
     <div className="mx-auto max-w-6xl space-y-14 px-4 py-8 sm:px-6 sm:py-10 lg:px-10">
       {/* Hero: aprender hablando con Sage */}
-      <section className="grid items-center gap-8 overflow-hidden rounded-[28px] bg-learn-deep p-6 text-white shadow-soft sm:p-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <section className="grid items-center gap-8 overflow-hidden rounded-[28px] bg-midnight p-6 text-white shadow-soft sm:p-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.14em] text-teal-300">Learn</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.14em] text-blue-300">Learn</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">What do you want to learn today?</h1>
-          <p className="mt-4 max-w-lg leading-relaxed text-teal-50/80">
+          <p className="mt-4 max-w-lg leading-relaxed text-blue-50/80">
             Tell Sage out loud. It opens the class and teaches it step by step, with the expert's reasons and the guardrails they never break.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <button
               onClick={() => say()}
               disabled={asking}
-              className="inline-flex items-center justify-center gap-2.5 rounded-xl bg-white px-6 py-3.5 font-semibold text-learn-strong transition-colors duration-150 hover:bg-teal-50 disabled:opacity-70"
+              className="inline-flex items-center justify-center gap-2.5 rounded-xl bg-white px-6 py-3.5 font-semibold text-accent-strong transition-colors duration-150 hover:bg-blue-50 disabled:opacity-70"
             >
               <MicIcon className="size-5" />
               {asking ? "Connecting to Sage…" : agent.status === "connected" ? "Talk to Sage" : "Start talking to Sage"}
@@ -63,13 +63,13 @@ export function LearnHome() {
             </a>
           </div>
           <div className="mt-7">
-            <p className="text-xs font-medium text-teal-100/70">Try saying</p>
+            <p className="text-xs font-medium text-blue-100/70">Try saying</p>
             <ul className="mt-2 flex flex-wrap gap-2">
               {TRY_SAYING.map((s) => (
                 <li key={s}>
                   <button
                     onClick={() => say(s)}
-                    className="rounded-full bg-white/10 px-3.5 py-1.5 text-left text-sm text-teal-50 transition-colors duration-150 hover:bg-white/20"
+                    className="rounded-full bg-white/10 px-3.5 py-1.5 text-left text-sm text-blue-50 transition-colors duration-150 hover:bg-white/20"
                   >
                     “{s}”
                   </button>
@@ -80,7 +80,7 @@ export function LearnHome() {
         </div>
         <div className="rounded-card bg-white/[0.04] p-4 ring-1 ring-white/10">
           <VoiceWave size="panel" className="h-24! lg:h-44!" />
-          <p className="mt-2 text-center text-sm text-teal-50/70" aria-live="polite">
+          <p className="mt-2 text-center text-sm text-blue-50/70" aria-live="polite">
             {agent.status === "connected" ? (agent.isSpeaking ? "Sage is speaking" : "Sage is listening") : "Sage is offline"}
           </p>
         </div>
@@ -100,14 +100,14 @@ export function LearnHome() {
                   <p className="font-semibold text-slate-900">{sessionTitle(t)}</p>
                   <div className="mt-3 flex items-center gap-3">
                     <div
-                      className="h-2 flex-1 overflow-hidden rounded-full bg-learn-tint"
+                      className="h-2 flex-1 overflow-hidden rounded-full bg-accent-tint"
                       role="progressbar"
                       aria-valuenow={pct}
                       aria-valuemin={0}
                       aria-valuemax={100}
                       aria-label="Progress"
                     >
-                      <div className="h-full rounded-full bg-learn" style={{ width: `${pct}%` }} />
+                      <div className="h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
                     </div>
                     <span className="text-sm tabular-nums text-slate-600">
                       {p.seen.length}/{p.total} steps
@@ -151,7 +151,7 @@ export function LearnHome() {
                 {t.tags.length > 0 && (
                   <span className="flex flex-wrap gap-1.5">
                     {t.tags.slice(0, 3).map((tag) => (
-                      <span key={tag} className="rounded-full bg-learn-tint px-2.5 py-0.5 text-xs font-medium text-learn-strong">
+                      <span key={tag} className="rounded-full bg-accent-tint px-2.5 py-0.5 text-xs font-medium text-accent-strong">
                         {tag}
                       </span>
                     ))}
@@ -191,13 +191,13 @@ export function LearnHome() {
               <li key={w.id}>
                 <Link
                   to={`/learn/workflows/${w.id}`}
-                  className="flex items-center justify-between gap-4 rounded-card bg-white p-4 ring-1 ring-line transition-shadow duration-200 hover:ring-learn"
+                  className="flex items-center justify-between gap-4 rounded-card bg-white p-4 ring-1 ring-line transition-shadow duration-200 hover:ring-accent"
                 >
                   <span className="min-w-0">
                     <span className="block font-medium text-slate-900">{w.name}</span>
                     <span className="block truncate text-sm text-slate-600">{w.description}</span>
                   </span>
-                  <span className="shrink-0 rounded-full bg-learn-tint px-2.5 py-1 text-xs font-medium text-learn-strong">
+                  <span className="shrink-0 rounded-full bg-accent-tint px-2.5 py-1 text-xs font-medium text-accent-strong">
                     {count === 0 ? "Coming soon" : count === 1 ? "1 class" : `${count} classes`}
                   </span>
                 </Link>
@@ -211,6 +211,6 @@ export function LearnHome() {
 }
 
 export const btnVoice =
-  "inline-flex items-center justify-center gap-2 rounded-xl bg-learn px-4 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-learn-strong";
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-accent-strong";
 export const btnRead =
-  "inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium text-learn-strong ring-1 ring-learn/30 transition-colors duration-150 hover:bg-learn-tint";
+  "inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium text-accent-strong ring-1 ring-accent/30 transition-colors duration-150 hover:bg-accent-tint";
