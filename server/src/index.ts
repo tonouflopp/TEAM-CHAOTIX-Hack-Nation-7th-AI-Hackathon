@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
 import { detectEvents } from "./vision.js";
-import { appendItems, readSession, type TimelineItem } from "./store.js";
+import { appendItems, deleteSession, listSessions, readSession, saveThumbnail, setMeta, thumbnailPath, type SessionMeta, type TimelineItem } from "./store.js";
+import { presidioHealthy, redactAll } from "./redact.js";
 
 // TEMPORAL: verificar qué llaves se cargaron (solo prefijo y longitud, nunca la llave completa).
 console.log(`[env] cwd=${process.cwd()}`);
@@ -35,11 +36,25 @@ app.post("/api/frame", async (req, res) => {
   }
 });
 
+// Filtra con Presidio los textos libres de cada item antes de guardarlo.
+async function redactItem(item: TimelineItem): Promise<TimelineItem> {
+  if (item.kind === "transcript") {
+    const { texts, by } = await redactAll([item.text]);
+    return { ...item, text: texts[0] ?? "", redactedBy: by };
+  }
+  if (item.kind === "screen") {
+    const { texts, by } = await redactAll([item.summary, item.from, item.to]);
+    return { ...item, summary: texts[0] ?? "", from: texts[1], to: texts[2], redactedBy: by };
+  }
+  return item;
+}
+
+// Devuelve los items ya filtrados para que la UI nunca muestre el texto original.
 app.post("/api/session/:id/events", async (req, res) => {
   try {
-    const items = (req.body.items ?? []) as TimelineItem[];
-    const session = await appendItems(req.params.id, items);
-    res.json({ ok: true, count: session.items.length });
+    const items = await Promise.all(((req.body.items ?? []) as TimelineItem[]).map(redactItem));
+    await appendItems(req.params.id, items);
+    res.json({ items });
   } catch (err) {
     res.status(400).json({ error: String(err) });
   }
@@ -53,5 +68,49 @@ app.get("/api/session/:id/events", async (req, res) => {
   }
 });
 
+app.get("/api/sessions", async (_req, res) => {
+  res.json(await listSessions());
+});
+
+app.patch("/api/session/:id", async (req, res) => {
+  try {
+    const { title, workflowId, status, durationMs } = req.body as SessionMeta;
+    const session = await setMeta(req.params.id, { title, workflowId, status, durationMs });
+    res.json(session.meta);
+  } catch (err) {
+    res.status(400).json({ error: String(err) });
+  }
+});
+
+app.delete("/api/session/:id", async (req, res) => {
+  try {
+    await deleteSession(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: String(err) });
+  }
+});
+
+// Miniatura ya difuminada en el navegador: representa la sesión sin que se lea ningún dato.
+app.put("/api/session/:id/thumbnail", async (req, res) => {
+  try {
+    await saveThumbnail(req.params.id, req.body.imageBase64);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: String(err) });
+  }
+});
+
+app.get("/api/session/:id/thumbnail", (req, res) => {
+  try {
+    res.sendFile(thumbnailPath(req.params.id), (err) => err && !res.headersSent && res.sendStatus(404));
+  } catch {
+    res.sendStatus(400);
+  }
+});
+
 const port = Number(process.env.PORT) || 3001;
-app.listen(port, () => console.log(`Server en http://localhost:${port}`));
+app.listen(port, async () => {
+  console.log(`Server en http://localhost:${port}`);
+  console.log(`[redact] Presidio ${(await presidioHealthy()) ? "conectado" : "NO disponible: se usará filtro regex"}`);
+});

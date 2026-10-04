@@ -4,3 +4,6 @@ dist/
 *.env
 !.env.example
 server/data/*.json
+presidio/.venv/
+server/data/*.jpg
+__pycache__/

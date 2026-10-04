@@ -1,219 +1,254 @@
-import { useEffect, useRef, useState } from "react";
-import { useConversation } from "@elevenlabs/react";
-import { analyzeFrame, getSignedUrl, saveItems, type TimelineItem } from "./lib/api";
-import { startScreenCapture } from "./lib/frameCapture";
-import { PauseDetector, type PauseSignal } from "./lib/pauseDetector";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { AppContext, type AppContextValue } from "./AppContext";
+import { Header } from "./components/Header";
+import { Modal, btn } from "./components/Modal";
+import { PRIVACY_KEY, PrivacyNotice } from "./components/PrivacyNotice";
+import { FloatingWidget, RecordingBar } from "./components/RecordingControls";
+import { useToast } from "./components/Toasts";
+import { useAgentSession } from "./hooks/useAgentSession";
+import { useAgentTools } from "./hooks/useAgentTools";
+import { useCaptureSession } from "./hooks/useCaptureSession";
+import { useFloatingWindow } from "./hooks/useFloatingWindow";
+import { listSessions, type SessionSummary } from "./lib/api";
+import type { Stats, User, Workflow } from "./lib/mockData";
+import { fetchOrgSessions, fetchStats, fetchWorkflows, signIn, signOut } from "./lib/placeholders";
+import type { Teaching } from "./lib/teachings";
+import { HomePage } from "./pages/HomePage";
+import { NotFound } from "./pages/NotFound";
+import { TeachingSessionPage } from "./pages/TeachingSessionPage";
+import { TeachingsPage } from "./pages/TeachingsPage";
+import { TabHome } from "./pages/TabHome";
+import { TabLayout } from "./pages/TabLayout";
+import { WorkflowPage } from "./pages/WorkflowPage";
+import { TeachSessionPage } from "./pages/TeachSessionPage";
+
+const PAGE_NAMES: [RegExp, string][] = [
+  [/^\/teach\/sessions\//, "sesión del profesor"],
+  [/^\/(teach|learn)\/workflows\//, "workflow"],
+  [/^\/teach/, "teach"],
+  [/^\/learn\/teachings\/.+/, "sesión para aprender"],
+  [/^\/learn\/teachings/, "enseñanzas de la organización"],
+  [/^\/learn/, "learn"],
+  [/^\/$/, "home"],
+];
 
 export default function App() {
-  const [running, setRunning] = useState(false);
-  const [offRecord, setOffRecord] = useState(false);
-  const [items, setItems] = useState<TimelineItem[]>([]);
-  const [canAsk, setCanAsk] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const notify = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const agent = useAgentSession(notify);
+  const capture = useCaptureSession(notify, agent);
+  const floating = useFloatingWindow();
 
-  const [sessionLabel, setSessionLabel] = useState("");
-  const sessionId = useRef("");
-  const startedAt = useRef(0);
-  const capture = useRef<{ stop: () => void } | null>(null);
-  const screenState = useRef(""); // último estado conocido de la pantalla (lo devuelve Claude)
-  const frameInFlight = useRef(false);
-  const offRecordRef = useRef(false);
-  const gapStart = useRef(0);
+  const [user, setUser] = useState<User | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [mySessions, setMySessions] = useState<SessionSummary[] | null>(null);
+  const [orgSessions, setOrgSessions] = useState<SessionSummary[] | null>(null);
+  const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [privacyFor, setPrivacyFor] = useState<{ workflowId: string | null } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const now = () => Date.now() - startedAt.current;
+  const recording = capture.phase !== "idle";
 
-  // Añade a la UI y persiste, salvo en modo "fuera de registro".
-  const record = (item: TimelineItem) => {
-    if (offRecordRef.current) return;
-    setItems((prev) => [...prev, item]);
-    saveItems(sessionId.current, [item]);
-  };
-
-  const conversation = useConversation({
-    onMessage: ({ message, role }) => {
-      if (message.startsWith("[")) return; // señales internas, no son transcripción
-      if (role === "agent") {
-        const isQuestion = message.includes("?");
-        const aboutEvent = isQuestion ? detector.current.topic : null;
-        if (isQuestion) detector.current.questionAsked();
-        record({ kind: "transcript", t: now(), role: "agent", text: message, isQuestion, aboutEvent });
-      } else {
-        record({ kind: "transcript", t: now(), role: "expert", text: message });
-      }
-    },
-    onModeChange: ({ mode }) => detector.current.setAgentSpeaking(mode === "speaking"),
-    onVadScore: ({ vadScore }) => detector.current.vadScore(vadScore),
-    onError: (message) => setError(String(message)),
-    onDisconnect: () => stop(),
-  });
-
-  const convRef = useRef(conversation);
-  useEffect(() => {
-    convRef.current = conversation;
-  });
-
-  const onSignal = (signal: PauseSignal) => {
-    setCanAsk(signal.kind === "pause");
-    // Las actualizaciones contextuales no provocan respuesta; para que el agente
-    // pregunte en la pausa se envía como mensaje de usuario (dispara un turno).
-    if (signal.kind === "pause") convRef.current.sendUserMessage(signal.text);
-    else convRef.current.sendContextualUpdate(signal.text);
-  };
-  const [detectorInstance] = useState(() => new PauseDetector((s) => onSignal(s)));
-  const detector = useRef(detectorInstance);
+  const refreshMine = useCallback(async () => {
+    try {
+      setMySessions(await listSessions());
+    } catch {
+      setMySessions([]);
+      notify("Couldn't load your sessions. Is the server running on port 3001?", "error");
+    }
+  }, [notify]);
 
   useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => detector.current.update(), 500);
-    return () => clearInterval(timer);
-  }, [running]);
+    refreshMine();
+    fetchOrgSessions().then(setOrgSessions);
+    fetchWorkflows().then(setWorkflows);
+    fetchStats().then(setStats);
+  }, [refreshMine]);
 
-  async function start() {
-    setError(null);
-    setItems([]);
-    sessionId.current = `s-${new Date().toISOString().replace(/[:.]/g, "-")}`;
-    screenState.current = "";
-    setSessionLabel(sessionId.current);
-    try {
-      const cap = await startScreenCapture(handleFrame, stop);
-      capture.current = cap;
-      startedAt.current = cap.startedAt;
-      const signedUrl = await getSignedUrl();
-      conversation.startSession({ signedUrl });
-      setRunning(true);
-    } catch (err) {
-      capture.current?.stop();
-      setError(String(err));
+  // Enseñanzas = sesiones de la organización (mock) + las guardadas por este profesor.
+  const teachings = useMemo<Teaching[] | null>(() => {
+    if (!orgSessions || !mySessions) return null;
+    const mine = mySessions
+      .filter((s) => s.status === "saved")
+      .map((s): Teaching => ({ ...s, owner: user?.name ?? "You", tags: s.tags ?? [], source: "mine" }));
+    const org = orgSessions.map((s): Teaching => ({ ...s, owner: s.owner ?? "Unknown", tags: s.tags ?? [], source: "org" }));
+    return [...mine, ...org].sort((a, b) => b.createdAt - a.createdAt);
+  }, [orgSessions, mySessions, user]);
+
+  // El agente sabe en qué página está el usuario.
+  useEffect(() => {
+    const page = PAGE_NAMES.find(([re]) => re.test(location.pathname))?.[1];
+    if (page && agent.status === "connected") agent.contextual(`[PÁGINA] El usuario está en: ${page}.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, agent.status]);
+
+  // Avisar antes de cerrar la pestaña con una grabación sin guardar.
+  useEffect(() => {
+    if (!recording) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [recording]);
+
+  async function beginRecording(workflowId: string | null): Promise<string> {
+    setSidebarOpen(false);
+    await floating.open(); // sin un clic previo el navegador puede negarlo: se usa el widget en la página
+    const ok = await capture.start(workflowId);
+    if (!ok) {
+      floating.close();
+      return "Recording didn't start: screen sharing was cancelled or the browser needs the user to click Start recording.";
     }
+    return "Recording started.";
   }
 
-  function stop() {
-    capture.current?.stop();
-    capture.current = null;
-    if (convRef.current.status !== "disconnected") convRef.current.endSession();
-    setRunning(false);
-    setCanAsk(false);
-  }
-
-  async function handleFrame(frame: { imageBase64: string; t: number }) {
-    // Fuera de registro no se analiza nada; si Claude aún procesa el frame anterior, se omite este.
-    if (offRecordRef.current || frameInFlight.current) return;
-    frameInFlight.current = true;
-    try {
-      const res = await analyzeFrame({ sessionId: sessionId.current, prevState: screenState.current, ...frame });
-      if (offRecordRef.current) return;
-      screenState.current = res.screenState;
-      for (const event of res.events) {
-        record({ kind: "screen", ...event });
-        detector.current.screenEvent(event.summary);
-        convRef.current.sendContextualUpdate(`[PANTALLA] ${event.summary}`);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      frameInFlight.current = false;
+  async function requestRecording(workflowId: string | null = null): Promise<string> {
+    if (recording) return "A recording is already in progress.";
+    if (!location.pathname.startsWith("/teach")) navigate("/teach");
+    if (!localStorage.getItem(PRIVACY_KEY)) {
+      setPrivacyFor({ workflowId });
+      return "The privacy notice is on screen. The user must accept it to start recording.";
     }
+    return beginRecording(workflowId);
   }
 
-  function toggleOffRecord() {
-    const next = !offRecordRef.current;
-    if (next) {
-      gapStart.current = now();
-      setItems((prev) => [...prev, { kind: "gap", t: gapStart.current, until: null }]);
-      convRef.current.sendContextualUpdate("[FUERA DE REGISTRO] El experto pidió no registrar. No preguntes nada.");
-      offRecordRef.current = true;
-    } else {
-      offRecordRef.current = false;
-      const gap: TimelineItem = { kind: "gap", t: gapStart.current, until: now() };
-      setItems((prev) => prev.map((it) => (it.kind === "gap" && it.until === null ? gap : it)));
-      saveItems(sessionId.current, [gap]);
-      convRef.current.sendContextualUpdate("[REGISTRO REANUDADO]");
-    }
-    conversation.setMuted(next); // el agente tampoco escucha mientras no se registra
-    detector.current.setPaused(next);
-    setOffRecord(next);
+  async function handleSave() {
+    await capture.save();
+    floating.close();
+    await refreshMine();
   }
 
-  const agentState =
-    conversation.status !== "connected" ? conversation.status : conversation.isSpeaking ? "hablando" : "escuchando";
+  async function handleDelete() {
+    setConfirmDelete(false);
+    await capture.discard();
+    floating.close();
+    await refreshMine();
+  }
+
+  async function handleSignIn() {
+    setAuthBusy(true);
+    const u = await signIn();
+    setUser(u);
+    setAuthBusy(false);
+    notify(`Logged in as ${u.name}`, "success");
+  }
+
+  async function handleSignOut() {
+    setAuthBusy(true);
+    await signOut();
+    setUser(null);
+    setAuthBusy(false);
+    notify("Logged out");
+  }
+
+  useAgentTools({ requestRecording, teachings });
+
+  const ctx: AppContextValue = {
+    user,
+    signIn: handleSignIn,
+    agent,
+    capture,
+    requestRecording,
+    mySessions,
+    teachings,
+    workflows,
+    stats,
+    sidebarOpen,
+    setSidebarOpen,
+  };
+  const inTab = /^\/(teach|learn)/.test(location.pathname);
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100">
-      <main className="flex flex-1 flex-col items-center justify-center gap-6 p-8">
-        <h1 className="text-3xl font-semibold">AI Apprentice · Captura</h1>
-        <p className="max-w-md text-center text-slate-400">
-          Comparte tu pantalla y trabaja con normalidad. El aprendiz observará y hará preguntas breves en las pausas.
-        </p>
-        <div className="flex gap-3">
-          {!running ? (
-            <button onClick={start} className="rounded-lg bg-emerald-600 px-6 py-3 font-medium hover:bg-emerald-500">
-              Iniciar sesión
-            </button>
-          ) : (
+    <AppContext.Provider value={ctx}>
+      <a
+        href="#main"
+        className="sr-only z-50 rounded-lg bg-white px-4 py-2 text-sm font-medium focus:not-sr-only focus:fixed focus:left-4 focus:top-20"
+      >
+        Skip to content
+      </a>
+      <Header
+        user={user}
+        authBusy={authBusy}
+        onSignIn={handleSignIn}
+        onSignOut={handleSignOut}
+        onToggleSessions={inTab ? () => setSidebarOpen(!sidebarOpen) : undefined}
+      />
+
+      <div className="pt-16">
+        {recording && (
+          <RecordingBar
+            capture={capture}
+            onSave={handleSave}
+            onRequestDelete={() => setConfirmDelete(true)}
+            canPopOut={floating.supported && !floating.win}
+            onPopOut={floating.open}
+            onShowLive={location.pathname === "/teach" ? undefined : () => navigate("/teach")}
+            className={inTab ? "lg:pl-[300px]" : ""}
+          />
+        )}
+
+        <main id="main">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/teach" element={<TabLayout tab="teach" />}>
+              <Route index element={<TabHome tab="teach" />} />
+              <Route path="sessions/:id" element={<TeachSessionPage />} />
+              <Route path="workflows/:id" element={<WorkflowPage tab="teach" />} />
+            </Route>
+            <Route path="/learn" element={<TabLayout tab="learn" />}>
+              <Route index element={<TabHome tab="learn" />} />
+              <Route path="teachings" element={<TeachingsPage />} />
+              <Route path="teachings/:id" element={<TeachingSessionPage />} />
+              <Route path="workflows/:id" element={<WorkflowPage tab="learn" />} />
+            </Route>
+            <Route path="*" element={<NotFound back={{ to: "/", label: "home" }} />} />
+          </Routes>
+        </main>
+      </div>
+
+      {recording && (
+        <FloatingWidget
+          capture={capture}
+          pipWindow={floating.win}
+          pipSupported={floating.supported}
+          onSave={handleSave}
+          onDelete={handleDelete}
+        />
+      )}
+
+      {privacyFor && (
+        <PrivacyNotice
+          onCancel={() => setPrivacyFor(null)}
+          onAccept={() => {
+            localStorage.setItem(PRIVACY_KEY, "1");
+            const { workflowId } = privacyFor;
+            setPrivacyFor(null);
+            beginRecording(workflowId);
+          }}
+        />
+      )}
+
+      {confirmDelete && (
+        <Modal
+          title="Delete this recording?"
+          onClose={() => setConfirmDelete(false)}
+          actions={
             <>
-              <button onClick={stop} className="rounded-lg bg-slate-700 px-6 py-3 font-medium hover:bg-slate-600">
-                Terminar
+              <button data-autofocus onClick={() => setConfirmDelete(false)} className={btn.secondary}>
+                Keep it
               </button>
-              <button
-                onClick={toggleOffRecord}
-                className={`rounded-lg px-6 py-3 font-medium ${offRecord ? "bg-red-600 hover:bg-red-500" : "bg-amber-600 hover:bg-amber-500"}`}
-              >
-                {offRecord ? "● Fuera de registro (reanudar)" : "Fuera de registro"}
+              <button onClick={handleDelete} className={btn.danger}>
+                Delete recording
               </button>
             </>
-          )}
-        </div>
-        {error && <p className="max-w-lg text-sm text-red-400">{error}</p>}
-        {running && <p className="text-xs text-slate-500">Sesión {sessionLabel}</p>}
-      </main>
-
-      <aside className="flex w-[420px] flex-col border-l border-slate-800 bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-800 p-4">
-          <span className="text-sm">
-            Agente: <b className={agentState === "hablando" ? "text-sky-400" : "text-emerald-400"}>{agentState}</b>
-          </span>
-          <span className={`rounded px-2 py-0.5 text-xs ${canAsk ? "bg-sky-700" : "bg-slate-700"}`}>
-            {canAsk ? "puede preguntar" : "no interrumpir"}
-          </span>
-        </div>
-        <ol className="flex-1 space-y-2 overflow-y-auto p-4 text-sm">
-          {items.map((item, i) => (
-            <li key={i}>
-              <TimelineRow item={item} />
-            </li>
-          ))}
-        </ol>
-      </aside>
-    </div>
+          }
+        >
+          The video, timeline and transcript of this session will be removed. This can't be undone.
+        </Modal>
+      )}
+    </AppContext.Provider>
   );
-}
-
-function TimelineRow({ item }: { item: TimelineItem }) {
-  const time = <span className="mr-2 font-mono text-xs text-slate-500">{fmt(item.t)}</span>;
-  if (item.kind === "gap")
-    return (
-      <div className="rounded border border-dashed border-red-700 p-2 text-red-300">
-        {time}Fuera de registro {item.until === null ? "(en curso)" : `hasta ${fmt(item.until)}`}
-      </div>
-    );
-  if (item.kind === "screen")
-    return (
-      <div className="rounded bg-slate-800 p-2">
-        {time}
-        <span className="mr-1 text-xs uppercase text-amber-400">{item.type}</span>
-        {item.summary}
-      </div>
-    );
-  return (
-    <div className={`rounded p-2 ${item.role === "agent" ? "bg-sky-950" : "bg-emerald-950"}`}>
-      {time}
-      <b>{item.role === "agent" ? "Aprendiz" : "Experto"}:</b> {item.text}
-      {item.isQuestion && item.aboutEvent && <div className="mt-1 text-xs text-slate-400">↳ sobre: {item.aboutEvent}</div>}
-    </div>
-  );
-}
-
-function fmt(ms: number) {
-  const s = Math.floor(ms / 1000);
-  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
