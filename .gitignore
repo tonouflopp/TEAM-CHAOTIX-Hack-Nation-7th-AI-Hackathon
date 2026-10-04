@@ -12,3 +12,4 @@ server/data/*.webm
 .vercel
 .env*
 !.env.example
+tools/demo-agent/out/

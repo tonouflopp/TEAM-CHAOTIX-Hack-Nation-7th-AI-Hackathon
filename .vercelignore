@@ -7,3 +7,5 @@ server/data/*
 !server/data/.gitkeep
 presidio/.venv
 __pycache__
+tools
+challenge.pdf
