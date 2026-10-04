@@ -4,6 +4,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { getSession, type Session, type SessionSummary } from "./api";
 import { MOCK_ORG_SESSIONS, MOCK_STATS, MOCK_USER, MOCK_WORKFLOWS, type Stats, type User, type Workflow } from "./mockData";
+import { sessionTitle } from "./format";
+import { buildLesson, type Lesson } from "./lesson";
+import type { Teaching } from "./teachings";
 import { buildWorkMap, type WorkMap } from "./workMap";
 
 export { getSignedUrl } from "./api"; // GET /api/signed-url (server real)
@@ -52,26 +55,11 @@ export async function generateWorkMap(session: Session): Promise<WorkMap> {
 
 /**
  * PLACEHOLDER: la fase Teach creará una sesión de tutor dedicada.
- * Hoy prepara el contexto de la lección (Work Map en texto) para el agente compartido.
+ * Hoy la lección se deriva del Work Map provisional y la enseña el agente compartido.
  */
-export async function startTutorSession(sessionId: string): Promise<{ title: string; briefing: string; kickoff: string }> {
-  const mock = MOCK_ORG_SESSIONS.find((s) => s.id === sessionId);
-  const session = mock ? mock.session : await getSession(sessionId);
-  const title = mock?.title ?? session.meta?.title ?? "this session";
-  const map = buildWorkMap(session.items);
-
-  const lines: string[] = [];
-  let n = 0;
-  for (const node of map.nodes) {
-    if (node.kind !== "step") continue;
-    lines.push(`${node.id === "intro" ? "Contexto" : `Paso ${++n}`}: ${node.title}${node.change ? ` (${node.change})` : ""}`);
-    for (const q of node.questions) {
-      if (q.answer) lines.push(`  ${q.isGuardrail ? "Guardrail" : "Razón"}: ${q.answer}`);
-    }
-  }
-  return {
-    title,
-    briefing: `[LECCIÓN] Work Map de "${title}":\n${lines.join("\n") || "(sin pasos registrados)"}`,
-    kickoff: `[LECCIÓN] Empieza la lección sobre "${title}".`,
-  };
+export async function loadLesson(t: Teaching): Promise<{ session: Session | null; map: WorkMap | null; lesson: Lesson | null }> {
+  const session = t.source === "org" ? await fetchOrgSession(t.id) : await getSession(t.id);
+  if (!session) return { session: null, map: null, lesson: null };
+  const map = await generateWorkMap(session);
+  return { session, map, lesson: buildLesson(sessionTitle(t), map) };
 }

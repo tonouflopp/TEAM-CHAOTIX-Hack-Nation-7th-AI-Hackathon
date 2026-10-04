@@ -12,18 +12,21 @@ const normalize = (s: string) =>
 
 const words = (s: string) => normalize(s).split(/\s+/).filter((w) => w.length > 2);
 
-/** Mejor coincidencia por título y etiquetas para open_session({ topic }). */
-export function findTeaching(teachings: Teaching[], topic: string): Teaching | null {
+/** Mejor coincidencia de un tema dicho por el usuario entre varios elementos (títulos, etiquetas...). */
+export function findBest<T>(items: T[], topic: string, text: (item: T) => string): T | null {
   const query = words(topic);
   if (query.length === 0) return null;
-  let best: { t: Teaching; score: number } | null = null;
-  for (const t of teachings) {
-    const haystack = words(`${t.title ?? ""} ${t.tags.join(" ")}`);
+  let best: { item: T; score: number } | null = null;
+  for (const item of items) {
+    const haystack = words(text(item));
     const score = query.reduce(
       (acc, q) => acc + (haystack.includes(q) ? 2 : haystack.some((h) => h.startsWith(q.slice(0, 5)) || q.startsWith(h.slice(0, 5))) ? 1 : 0),
       0,
     );
-    if (score > 0 && (!best || score > best.score)) best = { t, score };
+    if (score > 0 && (!best || score > best.score)) best = { item, score };
   }
-  return best?.t ?? null;
+  return best?.item ?? null;
 }
+
+/** Mejor coincidencia por título y etiquetas para open_session / start_class. */
+export const findTeaching = (teachings: Teaching[], topic: string) => findBest(teachings, topic, (t) => `${t.title ?? ""} ${t.tags.join(" ")}`);

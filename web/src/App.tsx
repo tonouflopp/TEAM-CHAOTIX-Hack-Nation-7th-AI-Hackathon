@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AppContext, type AppContextValue } from "./AppContext";
 import { Header } from "./components/Header";
 import { Modal, btn } from "./components/Modal";
@@ -16,8 +16,8 @@ import { fetchOrgSessions, fetchStats, fetchWorkflows, signIn, signOut } from ".
 import type { Teaching } from "./lib/teachings";
 import { HomePage } from "./pages/HomePage";
 import { NotFound } from "./pages/NotFound";
-import { TeachingSessionPage } from "./pages/TeachingSessionPage";
-import { TeachingsPage } from "./pages/TeachingsPage";
+import { LearnHome } from "./pages/LearnHome";
+import { LessonPage } from "./pages/LessonPage";
 import { TabHome } from "./pages/TabHome";
 import { TabLayout } from "./pages/TabLayout";
 import { WorkflowPage } from "./pages/WorkflowPage";
@@ -26,10 +26,9 @@ import { TeachSessionPage } from "./pages/TeachSessionPage";
 const PAGE_NAMES: [RegExp, string][] = [
   [/^\/teach\/sessions\//, "sesión del profesor"],
   [/^\/(teach|learn)\/workflows\//, "workflow"],
-  [/^\/teach/, "teach"],
-  [/^\/learn\/teachings\/.+/, "sesión para aprender"],
-  [/^\/learn\/teachings/, "enseñanzas de la organización"],
-  [/^\/learn/, "learn"],
+  [/^\/teach/, "teach (profesor: grabar sesiones)"],
+  [/^\/learn\/teachings\/.+/, "una clase (alumno)"],
+  [/^\/learn/, "learn (alumno: catálogo de clases)"],
   [/^\/$/, "home"],
 ];
 
@@ -144,7 +143,7 @@ export default function App() {
     notify("Logged out");
   }
 
-  useAgentTools({ requestRecording, teachings });
+  useAgentTools({ requestRecording, teachings, workflows, notify });
 
   const ctx: AppContextValue = {
     user,
@@ -159,7 +158,7 @@ export default function App() {
     sidebarOpen,
     setSidebarOpen,
   };
-  const inTab = /^\/(teach|learn)/.test(location.pathname);
+  const inTeach = location.pathname.startsWith("/teach");
 
   return (
     <AppContext.Provider value={ctx}>
@@ -174,7 +173,7 @@ export default function App() {
         authBusy={authBusy}
         onSignIn={handleSignIn}
         onSignOut={handleSignOut}
-        onToggleSessions={inTab ? () => setSidebarOpen(!sidebarOpen) : undefined}
+        onToggleSessions={inTeach ?() => setSidebarOpen(!sidebarOpen) : undefined}
       />
 
       <div className="pt-16">
@@ -186,7 +185,7 @@ export default function App() {
             canPopOut={floating.supported && !floating.win}
             onPopOut={floating.open}
             onShowLive={location.pathname === "/teach" ? undefined : () => navigate("/teach")}
-            className={inTab ? "lg:pl-[300px]" : ""}
+            className={inTeach ? "lg:pl-[300px]" : ""}
           />
         )}
 
@@ -198,11 +197,19 @@ export default function App() {
               <Route path="sessions/:id" element={<TeachSessionPage />} />
               <Route path="workflows/:id" element={<WorkflowPage tab="teach" />} />
             </Route>
-            <Route path="/learn" element={<TabLayout tab="learn" />}>
-              <Route index element={<TabHome tab="learn" />} />
-              <Route path="teachings" element={<TeachingsPage />} />
-              <Route path="teachings/:id" element={<TeachingSessionPage />} />
-              <Route path="workflows/:id" element={<WorkflowPage tab="learn" />} />
+            {/* Learn tiene su propia interfaz: sin barra de grabaciones, centrada en clases */}
+            <Route path="/learn" element={<Outlet />}>
+              <Route index element={<LearnHome />} />
+              <Route path="teachings" element={<Navigate to="/learn#classes" replace />} />
+              <Route path="teachings/:id" element={<LessonPage />} />
+              <Route
+                path="workflows/:id"
+                element={
+                  <div className="px-4 py-8 sm:px-6 sm:py-10 lg:px-10">
+                    <WorkflowPage tab="learn" />
+                  </div>
+                }
+              />
             </Route>
             <Route path="*" element={<NotFound back={{ to: "/", label: "home" }} />} />
           </Routes>

@@ -177,7 +177,7 @@ export function TabHome({ tab }: { tab: Tab }) {
             </p>
           </div>
         ) : (
-          <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recent.slice(0, 6).map((s) => (
               <li key={s.id}>
                 <Link

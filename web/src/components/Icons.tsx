@@ -106,3 +106,25 @@ export const EyeOffIcon = ({ className }: P) => (
     <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
   </svg>
 );
+export const MicIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+  </svg>
+);
+export const MicOffIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <path d="M3 3l18 18M9 9v2a3 3 0 0 0 5.1 2.1M15 9.3V6a3 3 0 0 0-5.7-1.3" />
+    <path d="M5.5 11a6.5 6.5 0 0 0 10.4 5.2M18.4 13.3a6.5 6.5 0 0 0 .1-2.3M12 17.5V21" />
+  </svg>
+);
+export const CheckIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <path d="m5 12.5 4.5 4.5L19 7.5" />
+  </svg>
+);
+export const BookIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 21H20" />
+  </svg>
+);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import logoUrl from "../assets/sage-logo.svg";
 import type { User } from "../lib/mockData";
 import { ListIcon, UserIcon } from "./Icons";
@@ -9,7 +9,7 @@ type Props = {
   authBusy: boolean;
   onSignIn: () => void;
   onSignOut: () => void;
-  /** Solo en Teach y Learn: abre la barra de sesiones en móvil. */
+  /** Solo en Teach: abre la barra de sesiones en móvil. */
   onToggleSessions?: () => void;
 };
 
@@ -43,10 +43,31 @@ export function Header({ user, authBusy, onSignIn, onSignOut, onToggleSessions }
         )}
         {/* El logo ya incluye el nombre "SAGE" y el lema */}
         <Link to="/" className="rounded-lg py-1" aria-label="Sage home">
-          <img src={logoUrl} alt="Sage" className="h-9 w-auto sm:h-10" />
+          <img src={logoUrl} alt="Sage" className="h-7 w-auto sm:h-10" />
         </Link>
 
-        <div className="relative ml-auto" ref={menuRef}>
+        {/* Pestañas visibles: cuando Sage cambia de pestaña por voz se ve aquí */}
+        <nav aria-label="Mode" className="ml-auto mr-1.5 flex shrink-0 rounded-xl bg-paper p-1 text-sm sm:mr-4">
+          {(["teach", "learn"] as const).map((tab) => (
+            <NavLink
+              key={tab}
+              to={`/${tab}`}
+              className={({ isActive }) =>
+                `rounded-lg px-2.5 py-1.5 font-medium transition-colors duration-150 sm:px-4 ${
+                  isActive
+                    ? tab === "teach"
+                      ? "bg-accent text-white shadow-sm"
+                      : "bg-learn text-white shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`
+              }
+            >
+              {tab === "teach" ? "Teach" : "Learn"}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="relative" ref={menuRef}>
           <button
             onClick={() => (user ? setMenuOpen((o) => !o) : onSignIn())}
             disabled={authBusy}
