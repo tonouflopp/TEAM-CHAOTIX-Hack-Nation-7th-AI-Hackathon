@@ -57,6 +57,9 @@ function build() {
 /** POST /api/mcp. Con MCP_TOKEN definido exige "Authorization: Bearer <token>" (en Vercel es obligatorio). */
 export async function handleMcp(req: Request, res: Response) {
   const token = process.env.MCP_TOKEN;
+  // Traza mínima para depurar la integración: método MCP, herramienta y si llegó el token (nunca su valor).
+  const calls = [req.body].flat().map((m) => (m?.method === "tools/call" ? `tools/call:${m.params?.name}` : m?.method));
+  console.log(`[mcp] ${calls.join(",")} auth=${req.headers.authorization ? "yes" : "no"}`);
   if (!token && process.env.VERCEL) return res.status(503).json({ error: "MCP_TOKEN no configurado" });
   if (token && req.headers.authorization?.replace(/^Bearer\s+/i, "") !== token) return res.status(401).json({ error: "unauthorized" });
 
