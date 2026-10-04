@@ -3,7 +3,8 @@ import { pipeline } from "node:stream/promises";
 import type { Readable } from "node:stream";
 import path from "node:path";
 
-const DATA_DIR = path.resolve("data");
+// En Vercel el disco es de solo lectura salvo /tmp (efímero, por instancia).
+const DATA_DIR = process.env.VERCEL ? "/tmp/sage-data" : path.resolve("data");
 
 export type ScreenEvent = {
   t: number;

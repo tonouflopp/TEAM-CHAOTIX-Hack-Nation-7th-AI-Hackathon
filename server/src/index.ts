@@ -141,8 +141,13 @@ app.post("/api/session/:id/title", async (req, res) => {
   }
 });
 
-const port = Number(process.env.PORT) || 3001;
-app.listen(port, async () => {
-  console.log(`Server en http://localhost:${port}`);
-  console.log(`[redact] Presidio ${(await presidioHealthy()) ? "conectado" : "NO disponible: se usará filtro regex"}`);
-});
+// En Vercel la función usa la app exportada; en local levantamos el puerto.
+export default app;
+
+if (!process.env.VERCEL) {
+  const port = Number(process.env.PORT) || 3001;
+  app.listen(port, async () => {
+    console.log(`Server en http://localhost:${port}`);
+    console.log(`[redact] Presidio ${(await presidioHealthy()) ? "conectado" : "NO disponible: se usará filtro regex"}`);
+  });
+}
