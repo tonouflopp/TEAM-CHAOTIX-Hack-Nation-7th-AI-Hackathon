@@ -60,16 +60,15 @@ function Lesson({ teaching }: { teaching: Teaching }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson]);
 
-  // Al salir de la página la clase termina (sin provocar que Sage hable).
+  // Silenciar el micro es solo para la clase: al salir se reactiva. (El fin de la clase lo detecta App por la ruta.)
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
   useEffect(
     () => () => {
-      if (classroom.get().voice && classroom.get().lessonId === teaching.id) {
-        classroom.setVoice(false);
-        agent.contextual("[CLASE TERMINADA] El alumno salió de la clase.");
-      }
+      if (mutedRef.current) agent.setMuted(false);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [teaching.id],
+    [],
   );
 
   async function startClass() {

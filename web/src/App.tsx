@@ -11,6 +11,7 @@ import { useAgentTools } from "./hooks/useAgentTools";
 import { useCaptureSession } from "./hooks/useCaptureSession";
 import { useFloatingWindow } from "./hooks/useFloatingWindow";
 import { listSessions, type SessionSummary } from "./lib/api";
+import { classroom, lessonPath } from "./lib/lesson";
 import type { Stats, User, Workflow } from "./lib/mockData";
 import { fetchOrgSessions, fetchStats, fetchWorkflows, signIn, signOut } from "./lib/placeholders";
 import type { Teaching } from "./lib/teachings";
@@ -84,6 +85,17 @@ export default function App() {
     if (page && agent.status === "connected") agent.contextual(`[PÁGINA] El usuario está en: ${page}.`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, agent.status]);
+
+  // Salir de la página de una clase por voz la termina (sin que Sage hable). Se mira la ruta y no el
+  // desmontaje de la página para que StrictMode no cierre una clase recién abierta por start_class.
+  useEffect(() => {
+    const room = classroom.get();
+    if (room.voice && room.lessonId && location.pathname !== lessonPath(room.lessonId)) {
+      classroom.setVoice(false);
+      agent.contextual("[CLASE TERMINADA] El alumno salió de la clase.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   // Avisar antes de cerrar la pestaña con una grabación sin guardar.
   useEffect(() => {

@@ -57,9 +57,10 @@ export const classroom = {
   setVoice(voice: boolean) {
     set({ voice });
   },
-  /** El agente pidió una clase de esta lección antes de que la página cargue. */
-  expectVoice(lessonId: string) {
-    set({ lessonId, lesson: null, step: 0, voice: true });
+  /** El agente abrió la clase (start_class): queda lista para show_step aunque la página aún no haya cargado. */
+  startVoice(lessonId: string, lesson: Lesson) {
+    if (state.lessonId === lessonId) set({ lesson, voice: true });
+    else set({ lessonId, lesson, step: 0, voice: true });
   },
 };
 

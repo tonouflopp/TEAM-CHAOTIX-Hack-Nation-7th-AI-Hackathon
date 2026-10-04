@@ -79,8 +79,7 @@ export function useAgentTools(opts: {
       go(lessonPath(match.id), `"${sessionTitle(match)}"`);
       return `"${sessionTitle(match)}" has no steps yet, so there's nothing to teach. Tell the learner and suggest another class.`;
     }
-    if (room.lessonId === match.id) classroom.setVoice(true);
-    else classroom.expectVoice(match.id);
+    classroom.startVoice(match.id, lesson);
     go(lessonPath(match.id), `the voice class "${sessionTitle(match)}"`);
     return `${lessonBriefing(lesson)}\n\nThe voice class is open on screen. Call show_step with step 1 and teach it.`;
   });
@@ -91,7 +90,7 @@ export function useAgentTools(opts: {
     const n = Number(params.step);
     const total = room.lesson.steps.length;
     if (!Number.isInteger(n) || n < 1 || n > total) return `Invalid step. Use a number from 1 to ${total}.`;
-    if (!location.pathname.startsWith(lessonPath(room.lessonId))) navigate(lessonPath(room.lessonId));
+    if (location.pathname !== lessonPath(room.lessonId)) navigate(lessonPath(room.lessonId));
     classroom.goTo(n - 1);
     return `Showing on screen. ${stepBriefing(room.lesson, n - 1)}`;
   });
