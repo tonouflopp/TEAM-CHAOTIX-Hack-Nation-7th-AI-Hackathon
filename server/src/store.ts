@@ -1,4 +1,6 @@
-import { promises as fs } from "node:fs";
+import { createWriteStream, promises as fs } from "node:fs";
+import { pipeline } from "node:stream/promises";
+import type { Readable } from "node:stream";
 import path from "node:path";
 
 const DATA_DIR = path.resolve("data");
@@ -75,7 +77,7 @@ export function setMeta(id: string, meta: SessionMeta) {
 
 export async function deleteSession(id: string) {
   await queues.get(id)?.catch(() => {});
-  await Promise.all([fs.rm(fileFor(id), { force: true }), fs.rm(fileFor(id, "jpg"), { force: true })]);
+  await Promise.all(["json", "jpg", "webm"].map((ext) => fs.rm(fileFor(id, ext), { force: true })));
 }
 
 export async function saveThumbnail(id: string, imageBase64: string) {
@@ -87,6 +89,16 @@ export function thumbnailPath(id: string) {
   return fileFor(id, "jpg");
 }
 
+/** Guarda el vídeo (webm) en streaming, sin cargarlo entero en memoria. */
+export async function saveVideo(id: string, body: Readable) {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  await pipeline(body, createWriteStream(fileFor(id, "webm")));
+}
+
+export function videoPath(id: string) {
+  return fileFor(id, "webm");
+}
+
 export async function listSessions() {
   await fs.mkdir(DATA_DIR, { recursive: true });
   // Se ignoran archivos con nombre no válido (p. ej. ".json") para que uno raro no rompa la lista.
@@ -94,7 +106,8 @@ export async function listSessions() {
   const sessions = await Promise.all(
     files.map(async (f) => {
       const s = await readSession(f.replace(/\.json$/, ""));
-      const hasThumbnail = await fs.access(fileFor(s.id, "jpg")).then(() => true, () => false);
+      const exists = (ext: string) => fs.access(fileFor(s.id, ext)).then(() => true, () => false);
+      const [hasThumbnail, hasVideo] = await Promise.all([exists("jpg"), exists("webm")]);
       return {
         id: s.id,
         createdAt: s.createdAt,
@@ -105,6 +118,7 @@ export async function listSessions() {
         stepCount: s.items.filter((i) => i.kind === "screen").length,
         questionCount: s.items.filter((i) => i.kind === "transcript" && i.isQuestion).length,
         hasThumbnail,
+        hasVideo,
       };
     }),
   );

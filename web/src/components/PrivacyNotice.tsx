@@ -26,8 +26,8 @@ export function PrivacyNotice({ onAccept, onCancel }: { onAccept: () => void; on
           Every few seconds the AI looks at a screenshot to describe your steps. Screenshots aren't stored. Only the description is
           saved, with names, emails, IBANs, phone numbers and IDs replaced by placeholders such as [PERSONA].
         </li>
-        <li>Your conversation with the apprentice is filtered with Microsoft Presidio before it's saved.</li>
-        <li>The video stays in this browser. It isn't uploaded.</li>
+        <li>Your conversation with Sage is filtered to remove personal data before it's saved.</li>
+        <li>The video is saved on your organization's Sage server so your team can learn from it.</li>
         <li>
           Use <strong>Off the record</strong> any time something on screen shouldn't be seen. Nothing is analyzed or saved until you
           turn it off.

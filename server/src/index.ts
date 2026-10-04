@@ -1,7 +1,8 @@
 import express from "express";
 import cors from "cors";
 import { detectEvents } from "./vision.js";
-import { appendItems, deleteSession, listSessions, readSession, saveThumbnail, setMeta, thumbnailPath, type SessionMeta, type TimelineItem } from "./store.js";
+import { appendItems, deleteSession, listSessions, readSession, saveThumbnail, saveVideo, setMeta, thumbnailPath, videoPath, type SessionMeta, type TimelineItem } from "./store.js";
+import { generateTitle } from "./titles.js";
 import { presidioHealthy, redactAll } from "./redact.js";
 
 // TEMPORAL: verificar qué llaves se cargaron (solo prefijo y longitud, nunca la llave completa).
@@ -106,6 +107,37 @@ app.get("/api/session/:id/thumbnail", (req, res) => {
     res.sendFile(thumbnailPath(req.params.id), (err) => err && !res.headersSent && res.sendStatus(404));
   } catch {
     res.sendStatus(400);
+  }
+});
+
+// Vídeo de la sesión: se recibe en streaming y se sirve con soporte de rangos (para poder avanzar/retroceder).
+app.put("/api/session/:id/video", async (req, res) => {
+  try {
+    await saveVideo(req.params.id, req);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: String(err) });
+  }
+});
+
+app.get("/api/session/:id/video", (req, res) => {
+  try {
+    res.type("video/webm").sendFile(videoPath(req.params.id), (err) => err && !res.headersSent && res.sendStatus(404));
+  } catch {
+    res.sendStatus(400);
+  }
+});
+
+// Título por tema, generado con Claude a partir de la línea de tiempo ya filtrada.
+app.post("/api/session/:id/title", async (req, res) => {
+  try {
+    const title = await generateTitle(await readSession(req.params.id));
+    if (!title) return res.json({ title: null });
+    await setMeta(req.params.id, { title });
+    res.json({ title });
+  } catch (err) {
+    console.error("[title]", err);
+    res.status(500).json({ error: String(err) });
   }
 });
 

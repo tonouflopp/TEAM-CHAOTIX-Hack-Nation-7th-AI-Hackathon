@@ -48,7 +48,7 @@ function Transcript({ session }: { session: Session | null }) {
             }`}
           >
             <ShieldIcon className="size-3.5" />
-            {redaction === "presidio" ? "Filtered with Presidio" : "Basic filter only (Presidio was offline)"}
+            {redaction === "presidio" ? "Personal data filtered" : "Basic personal data filter"}
           </span>
         )}
       </div>

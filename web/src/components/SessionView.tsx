@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { getSession, thumbnailUrl, type Session, type SessionSummary } from "../lib/api";
+import { getSession, thumbnailUrl, videoUrl, type Session, type SessionSummary } from "../lib/api";
 import { duration, longDate, plural, sessionTitle } from "../lib/format";
-import { fetchOrgSession, generateWorkMap, localRecordingUrl } from "../lib/placeholders";
+import { fetchOrgSession, generateWorkMap } from "../lib/placeholders";
 import type { WorkMap } from "../lib/workMap";
 import { BackIcon, ScreenIcon } from "./Icons";
 import { WorkMapView } from "./WorkMapView";
@@ -36,7 +36,6 @@ export function SessionView({ summary, source, back, side }: Props) {
     };
   }, [summary.id, source]);
 
-  const video = localRecordingUrl(summary.id);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -55,8 +54,8 @@ export function SessionView({ summary, source, back, side }: Props) {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <section aria-label="Session video" className="overflow-hidden rounded-card bg-white shadow-soft ring-1 ring-line">
-          {video ? (
-            <video src={video} controls className="aspect-video w-full bg-black" />
+          {summary.hasVideo ? (
+            <SessionVideo key={summary.id} src={videoUrl(summary.id)} poster={summary.hasThumbnail ? thumbnailUrl(summary.id) : undefined} />
           ) : summary.hasThumbnail ? (
             <img src={thumbnailUrl(summary.id)} alt="Blurred preview of the recorded screen" className="aspect-video w-full object-cover" />
           ) : (
@@ -64,13 +63,11 @@ export function SessionView({ summary, source, back, side }: Props) {
               <ScreenIcon className="size-8" />
             </div>
           )}
-          <p className="px-4 py-3 text-xs text-slate-600">
-            {video
-              ? "Playing the recording saved in this browser. It hasn't been uploaded."
-              : summary.hasThumbnail
-                ? "Preview is blurred so nothing on screen can be read."
-                : "The video for this session isn't available on this device."}
-          </p>
+          {!summary.hasVideo && (
+            <p className="px-4 py-3 text-xs text-slate-600">
+              {summary.hasThumbnail ? "There's no video for this session, only a blurred preview." : "There's no video for this session."}
+            </p>
+          )}
         </section>
         {side(loaded?.session ?? null)}
       </div>
@@ -91,6 +88,25 @@ export function SessionView({ summary, source, back, side }: Props) {
         <p className="mt-4 text-xs text-slate-500">Select a step to see the decision, its reasons and guardrails.</p>
       </section>
     </div>
+  );
+}
+
+// Los webm de MediaRecorder no traen la duración: se fuerza a calcularla para que la barra de progreso funcione.
+function SessionVideo({ src, poster }: { src: string; poster?: string }) {
+  return (
+    <video
+      src={src}
+      poster={poster}
+      controls
+      preload="metadata"
+      className="block aspect-video w-full bg-black object-contain"
+      onLoadedMetadata={(e) => {
+        const v = e.currentTarget;
+        if (v.duration !== Infinity && !Number.isNaN(v.duration)) return;
+        v.currentTime = 1e101;
+        v.addEventListener("timeupdate", () => (v.currentTime = 0), { once: true });
+      }}
+    />
   );
 }
 

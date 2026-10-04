@@ -7,3 +7,4 @@ server/data/*.json
 presidio/.venv/
 server/data/*.jpg
 __pycache__/
+server/data/*.webm

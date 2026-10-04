@@ -3,15 +3,23 @@ import { useConversation } from "@elevenlabs/react";
 import {
   analyzeFrame,
   deleteSession,
+  generateTitle,
   saveItems,
   saveThumbnail,
   updateSessionMeta,
+  uploadVideo,
   type TimelineItem,
 } from "../lib/api";
 import { createFrameSampler } from "../lib/frameCapture";
 import { PauseDetector, type PauseSignal } from "../lib/pauseDetector";
-import { uploadRecording } from "../lib/placeholders";
 import type { AgentSession } from "./useAgentSession";
+
+// Capture Controller (Chrome/Edge 109+): aún no está en los tipos DOM de TypeScript.
+declare global {
+  class CaptureController {
+    setFocusBehavior(behavior: "focus-captured-surface" | "no-focus-change"): void;
+  }
+}
 
 // Fases de una grabación. "paused" muestra las opciones Continuar / Guardar / Eliminar.
 export type CapturePhase = "idle" | "starting" | "recording" | "paused" | "processing";
@@ -146,9 +154,27 @@ export function useCaptureSession(notify: Notify, agent: AgentSession) {
     let screen: MediaStream | null = null;
     let mic: MediaStream | null = null;
     try {
-      screen = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 15 }, audio: false });
+      // Micrófono primero: si su permiso apareciera después, devolvería el foco a Sage.
       mic = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
       if (!mic) notify("Microphone blocked: the recording will have no audio and the agent can't hear you.", "error");
+
+      // Al elegir una ventana o pestaña, el navegador lleva al usuario a ella (Chrome/Edge).
+      // setFocusBehavior debe llamarse justo al resolverse getDisplayMedia, sin otro await en medio.
+      const controller = "CaptureController" in window ? new CaptureController() : undefined;
+      screen = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 15 },
+        audio: false,
+        selfBrowserSurface: "exclude", // no ofrecer la propia pestaña de Sage
+        ...(controller ? { controller } : {}),
+      } as DisplayMediaStreamOptions);
+      const surface = screen.getVideoTracks()[0]?.getSettings().displaySurface;
+      if (controller && surface !== "monitor") {
+        try {
+          controller.setFocusBehavior("focus-captured-surface");
+        } catch (err) {
+          console.warn("No se pudo cambiar al contenido compartido", err);
+        }
+      }
 
       const created = new Date();
       ids.current = {
@@ -293,9 +319,12 @@ export function useCaptureSession(notify: Notify, agent: AgentSession) {
     setItems([]);
     try {
       const video = await teardown();
-      if (video) await uploadRecording(id, video);
+      if (video?.size) await uploadVideo(id, video);
       await updateSessionMeta(id, { status: "saved", durationMs });
-      notify("Session saved", "success");
+      // El título se pone según el tema de la sesión; si falla, se queda el provisional.
+      const title = await generateTitle(id).catch(() => null);
+      if (title) agentRef.current.contextual(`[SESIÓN GUARDADA] La grabación se llama "${title}".`);
+      notify(title ? `Session saved as "${title}"` : "Session saved", "success");
       return id;
     } catch (err) {
       notify(`Couldn't save the session: ${err}`, "error");

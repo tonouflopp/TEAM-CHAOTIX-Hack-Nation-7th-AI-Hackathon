@@ -42,6 +42,7 @@ export type SessionSummary = {
   stepCount: number;
   questionCount: number;
   hasThumbnail: boolean;
+  hasVideo?: boolean;
   owner?: string; // solo en sesiones de la organización
   tags?: string[];
   thumbnailUrl?: string | null;
@@ -98,4 +99,19 @@ export async function saveThumbnail(id: string, imageBase64: string) {
 
 export function thumbnailUrl(id: string) {
   return `/api/session/${id}/thumbnail`;
+}
+
+/** Sube el vídeo grabado (webm) al server. */
+export async function uploadVideo(id: string, video: Blob) {
+  await json(await fetch(`/api/session/${id}/video`, { method: "PUT", headers: { "Content-Type": video.type || "video/webm" }, body: video }));
+}
+
+export function videoUrl(id: string) {
+  return `/api/session/${id}/video`;
+}
+
+/** Pide al server un título por tema (Claude) y lo guarda. null si no hay contenido suficiente. */
+export async function generateTitle(id: string): Promise<string | null> {
+  const res = await json<{ title: string | null }>(await fetch(`/api/session/${id}/title`, { method: "POST" }));
+  return res.title;
 }

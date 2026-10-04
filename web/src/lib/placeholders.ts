@@ -45,24 +45,6 @@ export async function fetchStats(): Promise<Stats> {
   return MOCK_STATS;
 }
 
-// Grabaciones guardadas en esta pestaña (el vídeo aún no se sube a ningún sitio).
-const localRecordings = new Map<string, string>();
-
-/**
- * PLACEHOLDER: subir el vídeo (webm) a tu almacenamiento.
- * Hoy solo crea una URL local para reproducirlo en esta pestaña.
- */
-export async function uploadRecording(sessionId: string, video: Blob): Promise<{ url: string }> {
-  await delay(900);
-  const url = URL.createObjectURL(video);
-  localRecordings.set(sessionId, url);
-  return { url };
-}
-
-export function localRecordingUrl(sessionId: string) {
-  return localRecordings.get(sessionId) ?? null;
-}
-
 /** PLACEHOLDER: la fase Map generará el Work Map con IA; hoy se deriva de la línea de tiempo. */
 export async function generateWorkMap(session: Session): Promise<WorkMap> {
   return buildWorkMap(session.items);
