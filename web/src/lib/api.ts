@@ -85,6 +85,16 @@ export async function getSession(id: string): Promise<Session> {
   return json<Session>(await fetch(`/api/session/${id}/events`));
 }
 
+// Sesiones de otros profesores de la organización (hoy, ejemplos servidos por el server).
+export async function listOrgSessions(): Promise<SessionSummary[]> {
+  return json<SessionSummary[]>(await fetch("/api/org/sessions"));
+}
+
+export async function getOrgSession(id: string): Promise<Session | null> {
+  const res = await fetch(`/api/org/sessions/${encodeURIComponent(id)}`);
+  return res.status === 404 ? null : json<Session>(res);
+}
+
 export async function updateSessionMeta(id: string, meta: SessionMeta) {
   return json<SessionMeta>(await fetch(`/api/session/${id}`, jsonInit("PATCH", meta)));
 }

@@ -4,6 +4,8 @@ import { detectEvents } from "./vision.js";
 import { appendItems, deleteSession, listSessions, readSession, saveThumbnail, saveVideo, setMeta, thumbnailPath, videoPath, type SessionMeta, type TimelineItem } from "./store.js";
 import { generateTitle } from "./titles.js";
 import { presidioHealthy, redactAll } from "./redact.js";
+import { handleMcp } from "./mcp.js";
+import { ORG_SESSIONS } from "./orgSessions.js";
 
 // TEMPORAL: verificar qué llaves se cargaron (solo prefijo y longitud, nunca la llave completa).
 console.log(`[env] cwd=${process.cwd()}`);
@@ -23,6 +25,23 @@ app.get("/api/signed-url", async (_req, res) => {
   if (!r.ok) return res.status(502).json({ error: `ElevenLabs ${r.status}: ${await r.text()}` });
   const { signed_url } = (await r.json()) as { signed_url: string };
   res.json({ signedUrl: signed_url });
+});
+
+// Sesiones de otros profesores de la organización (ejemplo hasta que haya backend de organización).
+app.get("/api/org/sessions", (_req, res) => {
+  res.json(ORG_SESSIONS.map(({ session: _session, ...summary }) => summary));
+});
+
+app.get("/api/org/sessions/:id", (req, res) => {
+  const found = ORG_SESSIONS.find((s) => s.id === req.params.id);
+  if (!found) return res.sendStatus(404);
+  res.json(found.session);
+});
+
+// Servidor MCP para el tutor: búsqueda de guardrails (ver mcp.ts). Sin estado: solo POST.
+app.post("/api/mcp", handleMcp);
+app.all("/api/mcp", (_req, res) => {
+  res.set("Allow", "POST").status(405).json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null });
 });
 
 // Un frame de pantalla -> eventos de cambio. El cliente guarda los eventos (para respetar "fuera de registro").

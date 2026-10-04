@@ -1,10 +1,12 @@
 // Configura el agente de ElevenLabs a partir de docs/agent-prompt.md:
-// crea o actualiza las client tools, activa Skip turn y sustituye prompt y primer mensaje.
+// crea o actualiza las client tools, activa Skip turn, conecta el servidor MCP de guardrails
+// (si hay MCP_URL y MCP_TOKEN) y sustituye prompt y primer mensaje.
 //   node --env-file=key.env scripts/setup-agent.mjs [--dry-run]
 import { readFile } from "node:fs/promises";
 
 const API = "https://api.elevenlabs.io/v1/convai";
-const { ELEVENLABS_API_KEY: key, ELEVENLABS_AGENT_ID: agentId } = process.env;
+const { ELEVENLABS_API_KEY: key, ELEVENLABS_AGENT_ID: agentId, MCP_URL: mcpUrl, MCP_TOKEN: mcpToken } = process.env;
+const MCP_NAME = "Sage guardrails";
 const dryRun = process.argv.includes("--dry-run");
 if (!key || !agentId) throw new Error("Faltan ELEVENLABS_API_KEY o ELEVENLABS_AGENT_ID (usa --env-file).");
 
@@ -58,8 +60,9 @@ async function api(method, path, body) {
     headers: { "xi-api-key": key, "Content-Type": "application/json" },
     body: body && JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${await res.text()}`);
-  return res.json();
+  const text = await res.text();
+  if (!res.ok) throw new Error(`${method} ${path} → ${res.status} ${text}`);
+  return text ? JSON.parse(text) : {};
 }
 
 // Secciones "## First message" y "## System prompt" del markdown.
@@ -99,6 +102,39 @@ for (const t of TOOLS) {
   }
 }
 
+// Servidor MCP de guardrails (server/src/mcp.ts). La URL no se puede editar: si cambia, se crea otro.
+let mcpServerIds;
+let stale = [];
+if (mcpUrl && mcpToken) {
+  if (!mcpUrl.startsWith("https://")) throw new Error("MCP_URL debe usar https (ElevenLabs lo exige).");
+  const settings = {
+    approval_policy: "auto_approve_all", // herramientas de solo lectura
+    request_headers: { Authorization: `Bearer ${mcpToken}` },
+  };
+  const { mcp_servers = [] } = await api("GET", "/mcp-servers");
+  const mine = mcp_servers.filter((m) => m.config?.name === MCP_NAME);
+  let current = mine.find((m) => m.config.url === mcpUrl);
+  if (current) {
+    await api("PATCH", `/mcp-servers/${current.id}`, settings);
+    console.log(`mcp ${MCP_NAME}: actualizado`);
+  } else {
+    current = await api("POST", "/mcp-servers", {
+      config: {
+        url: mcpUrl,
+        name: MCP_NAME,
+        description: "Guardrails and reasons captured from Sage experts, with their exact words, step and screen moment.",
+        transport: "STREAMABLE_HTTP",
+        ...settings,
+      },
+    });
+    console.log(`mcp ${MCP_NAME}: creado (${mcpUrl})`);
+  }
+  mcpServerIds = [current.id];
+  stale = mine.filter((m) => m.id !== current.id);
+} else {
+  console.log("mcp: sin MCP_URL/MCP_TOKEN, no se toca");
+}
+
 await api("PATCH", `/agents/${agentId}`, {
   conversation_config: {
     agent: {
@@ -106,9 +142,16 @@ await api("PATCH", `/agents/${agentId}`, {
       prompt: {
         prompt,
         tool_ids: toolIds,
+        ...(mcpServerIds && { mcp_server_ids: mcpServerIds }),
         built_in_tools: { skip_turn: { type: "system", name: "skip_turn", description: "", params: { system_tool_type: "skip_turn" } } },
       },
     },
   },
 });
-console.log(`agente ${agentId}: prompt (${prompt.length} caracteres), primer mensaje y ${toolIds.length} tools aplicados`);
+console.log(`agente ${agentId}: prompt (${prompt.length} caracteres), primer mensaje, ${toolIds.length} tools${mcpServerIds ? " y MCP" : ""} aplicados`);
+
+// Los MCP con una URL anterior ya no los usa el agente: se borran después de cambiarlo.
+for (const old of stale) {
+  await api("DELETE", `/mcp-servers/${old.id}`);
+  console.log(`mcp ${MCP_NAME}: borrado el anterior (${old.config.url})`);
+}

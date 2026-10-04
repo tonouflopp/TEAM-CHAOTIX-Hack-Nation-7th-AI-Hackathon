@@ -1,7 +1,9 @@
 # Agente de voz de Sage (ElevenLabs)
 
-Todo lo de este archivo se aplica con un comando (crea o actualiza las client tools, activa Skip turn
-y sustituye el system prompt y el primer mensaje del agente):
+Todo lo de este archivo se aplica con un comando (crea o actualiza las client tools, activa Skip turn,
+conecta el servidor MCP de guardrails y sustituye el system prompt y el primer mensaje del agente).
+Para el MCP hacen falta `MCP_URL` (p. ej. `https://<tu-dominio>/api/mcp`) y `MCP_TOKEN` en el archivo de entorno;
+sin ellos, el script deja el MCP del agente como está.
 
 ```bash
 node --env-file=key.env scripts/setup-agent.mjs            # o --env-file=server/.env
@@ -62,6 +64,17 @@ Recibes el Work Map de la clase: pasos numerados, razones y guardrails del exper
 - `[CLASE TERMINADA]`: deja de enseñar; vuelves al modo normal.
 - No inventes pasos ni reglas que no estén en el Work Map; si te preguntan algo que no aparece, dilo.
 
+### Guardrails de los expertos (servidor MCP)
+Tienes `search_guardrails` y `get_class_guardrails`: devuelven las reglas de los expertos con sus palabras exactas,
+el paso y el momento de la grabación. Úsalas así:
+- **Antes de que el alumno tome una decisión** (aprobar, rechazar, codificar, enrutar, pagar, poner en espera) o cuando
+  describa un caso nuevo, llama a `search_guardrails` describiendo la situación en inglés con los datos que importan
+  (importe, tipo, proveedor...). Hazlo también si pregunta "¿cuál es la regla para...?" en cualquier pantalla.
+- Si un guardrail aplica, **detenlo antes de que guarde**: "Priya pararía aquí. ¿Por qué crees?". Espera su respuesta y
+  explícalo con las palabras del experto, citando el paso y el momento de la grabación.
+- Al empezar una clase puedes llamar a `get_class_guardrails` para tener presentes todas sus reglas.
+- Si la herramienta no encuentra nada, no inventes una regla: di que el experto no cubrió ese caso y que consulte a su responsable.
+
 ## Client tools
 
 Las crea `scripts/setup-agent.mjs` (todas con *Wait for response*). Además activa la system tool **Skip turn**.
@@ -76,3 +89,13 @@ Las crea `scripts/setup-agent.mjs` (todas con *Wait for response*). Además acti
 | `show_step` | Muestra un paso de la clase en pantalla. | `step` (número desde 1) |
 | `end_class` | Termina la clase por voz; el alumno sigue a su ritmo. | — |
 | `open_workflow` | Abre un workflow en la pestaña actual. | `name` |
+
+## Herramientas MCP (servidor `sage-guardrails`)
+
+Las sirve el propio server en `POST /api/mcp` (Streamable HTTP, sin estado, `Authorization: Bearer <MCP_TOKEN>`).
+El script lo registra en ElevenLabs con aprobación automática: son de solo lectura.
+
+| Nombre | Qué hace | Parámetros |
+|---|---|---|
+| `search_guardrails` | Reglas de los expertos que aplican a una situación, con sus palabras, paso y momento en pantalla. | `query`, `include_reasons` (opcional), `limit` (opcional) |
+| `get_class_guardrails` | Todos los guardrails y razones de una clase, en orden de pasos. | `class_topic` |

@@ -2,8 +2,8 @@
 // PLACEHOLDERS: funciones sin backend todavía. Devuelven datos de ejemplo
 // (mockData.ts) con un pequeño retardo. Sustituye el cuerpo por la llamada a tu API.
 // ─────────────────────────────────────────────────────────────────────────────
-import { getSession, type Session, type SessionSummary } from "./api";
-import { MOCK_ORG_SESSIONS, MOCK_STATS, MOCK_USER, MOCK_WORKFLOWS, type Stats, type User, type Workflow } from "./mockData";
+import { getOrgSession, getSession, listOrgSessions, type Session, type SessionSummary } from "./api";
+import { MOCK_STATS, MOCK_USER, MOCK_WORKFLOWS, type Stats, type User, type Workflow } from "./mockData";
 import { sessionTitle } from "./format";
 import { buildLesson, type Lesson } from "./lesson";
 import type { Teaching } from "./teachings";
@@ -24,16 +24,14 @@ export async function signOut(): Promise<void> {
   await delay(150);
 }
 
-/** PLACEHOLDER: sesiones grabadas por los profesores de la organización. */
+/** PLACEHOLDER: sesiones grabadas por los profesores de la organización (ejemplos del server, que también usa el MCP). */
 export async function fetchOrgSessions(): Promise<SessionSummary[]> {
-  await delay(400);
-  return MOCK_ORG_SESSIONS.map(({ session: _session, ...summary }) => summary);
+  return listOrgSessions();
 }
 
 /** PLACEHOLDER: detalle de una sesión de otra persona de la organización. */
 export async function fetchOrgSession(id: string): Promise<Session | null> {
-  await delay(250);
-  return MOCK_ORG_SESSIONS.find((s) => s.id === id)?.session ?? null;
+  return getOrgSession(id);
 }
 
 /** PLACEHOLDER: catálogo de workflows. */

@@ -64,7 +64,9 @@ export default function App() {
 
   useEffect(() => {
     refreshMine();
-    fetchOrgSessions().then(setOrgSessions);
+    fetchOrgSessions()
+      .then(setOrgSessions)
+      .catch(() => setOrgSessions([]));
     fetchWorkflows().then(setWorkflows);
     fetchStats().then(setStats);
   }, [refreshMine]);
